@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIHS Attendance System</title>
+<style>
+  :root {
+    --primary: #0c3d56;
+    --accent: #0891b2;
+    --accent-light: #e0f2fe;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg: #f0f9ff;
+    --card: #ffffff;
+    --border: #bae6fd;
+    --text: #0f172a;
+    --muted: #64748b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, var(--primary) 0%, #1a6b8a 100%);
+    color: white; padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(12,61,86,0.3);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 900; color: white; flex-shrink: 0;
+  }
+  .header-title h1 { font-size: 18px; font-weight: 700; }
+  .header-title p { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .date-display { font-size: 13px; opacity: 0.85; }
+  .timetable-toggle {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+    color: white; padding: 5px 14px; border-radius: 20px; cursor: pointer;
+    font-size: 12px; font-weight: 600; transition: all 0.2s;
+  }
+  .timetable-toggle:hover { background: rgba(255,255,255,0.25); }
+  .api-status { font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; }
+  .status-dot.offline { background: #f87171; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; background: var(--primary); padding: 0 24px;
+    overflow-x: auto; gap: 2px;
+  }
+  .tab {
+    padding: 12px 20px; color: rgba(255,255,255,0.65); cursor: pointer;
+    font-size: 13px; font-weight: 600; border-bottom: 3px solid transparent;
+    white-space: nowrap; transition: all 0.2s;
+  }
+  .tab:hover { color: white; }
+  .tab.active { color: white; border-bottom-color: #38bdf8; }
+
+  /* Content */
+  .content { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .card-title { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* Today Subjects Bar */
+  .today-bar {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; color: white;
+  }
+  .today-bar h3 { font-size: 13px; opacity: 0.8; margin-bottom: 10px; }
+  .today-subjects { display: flex; flex-wrap: wrap; gap: 8px; }
+  .subject-chip {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px;
+    cursor: pointer; transition: all 0.2s; font-weight: 500;
+  }
+  .subject-chip:hover, .subject-chip.selected { background: white; color: var(--primary); }
+
+  /* Student Grid */
+  .student-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px; margin-top: 16px;
+  }
+  .student-card {
+    border: 2px solid #e2e8f0; border-radius: 10px; padding: 12px;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+    background: white;
+  }
+  .student-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .student-card.present { border-color: var(--success); background: #f0fdf4; }
+  .student-card.absent { border-color: var(--danger); background: #fef2f2; }
+  .student-card .roll { font-size: 10px; color: var(--muted); font-family: monospace; }
+  .student-card .name { font-size: 12px; font-weight: 600; margin: 4px 0; }
+  .student-card .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700;
+  }
+  .student-card.present .badge { background: #dcfce7; color: var(--success); }
+  .student-card.absent .badge { background: #fee2e2; color: var(--danger); }
+  .student-card.default .badge { background: #f1f5f9; color: var(--muted); }
+
+  /* Buttons */
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #0e7490; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+  .btn-outline:hover { background: var(--accent-light); }
+  .btn-sm { padding: 6px 14px; font-size: 12px; }
+  .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+
+  /* Form Controls */
+  select, input[type=date], input[type=text] {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 14px; font-size: 13px; color: var(--text);
+    background: white; outline: none; transition: border 0.2s;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  label { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--primary); color: white; padding: 10px 14px; text-align: left; }
+  td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; }
+  tr:hover td { background: var(--accent-light); }
+  .pct-high { color: var(--success); font-weight: 700; }
+  .pct-low { color: var(--danger); font-weight: 700; }
+  .pct-mid { color: var(--warning); font-weight: 700; }
+
+  /* Stats Row */
+  .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .stat-box {
+    flex: 1; min-width: 100px; border-radius: 10px; padding: 14px;
+    text-align: center;
+  }
+  .stat-box .num { font-size: 28px; font-weight: 800; }
+  .stat-box .lbl { font-size: 11px; font-weight: 600; opacity: 0.8; margin-top: 2px; }
+  .stat-green { background: #dcfce7; color: var(--success); }
+  .stat-red { background: #fee2e2; color: var(--danger); }
+  .stat-blue { background: var(--accent-light); color: var(--accent); }
+
+  /* Scanner */
+  .scan-zone {
+    border: 3px dashed var(--border); border-radius: 16px; padding: 40px;
+    text-align: center; cursor: pointer; transition: all 0.2s;
+  }
+  .scan-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+  .scan-zone .icon { font-size: 48px; margin-bottom: 12px; }
+  .scan-preview { max-width: 100%; max-height: 300px; border-radius: 8px; margin: 16px 0; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--primary); color: white; padding: 12px 20px;
+    border-radius: 10px; font-size: 13px; font-weight: 600;
+    transform: translateY(100px); opacity: 0; transition: all 0.3s;
+    z-index: 999; max-width: 300px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { background: var(--success); }
+  #toast.error { background: var(--danger); }
+
+  /* Loading */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Absent list */
+  .absent-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .absent-chip { background: #fee2e2; color: var(--danger); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+
+  /* Admin */
+  .admin-section { margin-bottom: 28px; }
+  .admin-section h3 { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  .teacher-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+  .teacher-row:last-child { border-bottom: none; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .header-title h1 { font-size: 14px; }
+    .content { padding: 14px; }
+    .student-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+    header { flex-wrap: wrap; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="header-left">
+    <div class="logo">A</div>
+    <div class="header-title">
+      <h1>Askari Institute of Health Sciences</h1>
+      <p>PDS24 Semester 3 &mdash; Pharm-D</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="date-display" id="dateDisplay"></div>
+    <button class="timetable-toggle" onclick="switchTimetable()">&#x1F4C5; <span id="ttLabel">Regular</span> Timetable</button>
+    <div class="api-status"><div class="status-dot" id="statusDot"></div><span id="statusText">Connecting...</span></div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('mark')">&#x270F;&#xFE0F; Mark Attendance</div>
+  <div class="tab" onclick="showTab('dar')">&#x1F4CB; DAR Report</div>
+  <div class="tab" onclick="showTab('defaulters')">&#x26A0;&#xFE0F; Defaulters</div>
+  <div class="tab" onclick="showTab('summary')">&#x1F4CA; Student Summary</div>
+  <div class="tab" onclick="showTab('scanner')">&#x1F4F7; AI Scanner</div>
+  <div class="tab" onclick="showTab('export')">&#x1F4BE; Export</div>
+  <div class="tab" onclick="showTab('admin')">&#x2699;&#xFE0F; Admin</div>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- MARK ATTENDANCE -->
+  <div id="pane-mark" class="tab-pane active">
+    <div class="today-bar">
+      <h3>&#x1F4C5; TODAY'S SUBJECTS</h3>
+      <div class="today-subjects" id="todaySubjects">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#x270F;&#xFE0F; Mark Attendance</div>
+      <div class="form-row">
+        <label>Subject:</label>
+        <select id="markSubject" onchange="loadAttendanceForSubject()"><option value="">-- Select Subject --</option></select>
+        <label>Date:</label>
+        <input type="date" id="markDate" onchange="loadAttendanceForSubject()">
+      </div>
+      <div id="markStatus" style="font-size:13px;color:var(--muted);margin-bottom:10px;"></div>
+      <div class="btn-group">
+        <button class="btn btn-success btn-sm" onclick="markAll('P')">&#x2714; All Present</button>
+        <button class="btn btn-danger btn-sm" onclick="markAll('A')">&#x2716; All Absent</button>
+        <button class="btn btn-outline btn-sm" onclick="resetAll()">&#x21BA; Reset</button>
+      </div>
+      <div class="student-grid" id="studentGrid"></div>
+      <div style="margin-top:20px;">
+        <button class="btn btn-primary" onclick="submitAttendance()" id="submitBtn">&#x1F4BE; Save Attendance</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAR REPORT -->
+  <div id="pane-dar" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x1F4CB; Daily Activity Report</div>
+      <div class="form-row">
+        <label>Date:</label>
+        <input type="date" id="darDate">
+        <button class="btn btn-primary" onclick="loadDAR()">Generate DAR</button>
+      </div>
+      <div id="darContent"></div>
+    </div>
+  </div>
+
+  <!-- DEFAULTERS -->
+  <div id="pane-defaulters" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x26A0;&#xFE0F; Defaulter List (Below 75%)</div>
+      <div class="form-row">
+        <label>Filter by Subject:</label>
+        <select id="defaulterFilter" onchange="loadDefaulters()"><option value="">All Subjects</option></select>
+        <button class="btn btn-primary btn-sm" onclick="loadDefaulters()">&#x1F504; Refresh</button>
+      </div>
+      <div id="defaultersContent"></div>
+    </div>
+  </div>
+
+  <!-- STUDENT SUMMARY -->
+  <div id="pane-summary" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x1F4CA; Student Attendance Summary</div>
+      <div class="form-row">
+        <input type="text" id="searchInput" placeholder="Search by name or roll number..." style="flex:1;" oninput="filterStudents()">
+      </div>
+      <div id="summaryContent"></div>
+    </div>
+  </div>
+
+  <!-- AI SCANNER -->
+  <div id="pane-scanner" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x1F4F7; AI Attendance Scanner</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Take a photo of the paper register. AI will read it and suggest attendance. You can review before saving.</p>
+      <div class="form-row">
+        <label>Subject:</label>
+        <select id="scanSubject"><option value="">-- Select Subject --</option></select>
+        <label>Date:</label>
+        <input type="date" id="scanDate">
+      </div>
+      <div class="scan-zone" onclick="document.getElementById('scanInput').click()">
+        <div class="icon">&#x1F4F8;</div>
+        <p style="font-weight:600;color:var(--primary);">Click to Upload Register Photo</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px;">JPG, PNG supported</p>
+      </div>
+      <input type="file" id="scanInput" accept="image/*" style="display:none" onchange="handleScanUpload(event)">
+      <img id="scanPreview" class="scan-preview" style="display:none;">
+      <div id="scanResult"></div>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div id="pane-export" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x1F4BE; Export Attendance Data</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;">Download complete attendance records for all students and subjects.</p>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="exportCSV()">&#x1F4C4; Download CSV</button>
+      </div>
+      <div id="exportClassSummary"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="pane-admin" class="tab-pane">
+    <div class="card">
+      <div class="card-title">&#x2699;&#xFE0F; Admin Panel</div>
+
+      <!-- Settings -->
+      <div class="admin-section">
+        <h3>&#x1F511; Settings</h3>
+        <div class="form-row">
+          <label>OpenRouter API Key:</label>
+          <input type="text" id="apiKeyInput" placeholder="sk-or-..." style="flex:1;">
+          <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Save Key</button>
+        </div>
+        <div class="form-row">
+          <label>Active Timetable:</label>
+          <select id="adminTTSelect" onchange="setTimetableFromAdmin()">
+            <option value="regular">Regular</option>
+            <option value="ramadan">Ramadan</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Teachers -->
+      <div class="admin-section">
+        <h3>&#x1F469;&#x200D;&#x1F3EB; Teacher Management</h3>
+        <div class="form-row">
+          <input type="text" id="newTeacherName" placeholder="New teacher name..." style="flex:1;">
+          <button class="btn btn-success btn-sm" onclick="addTeacher()">+ Add Teacher</button>
+        </div>
+        <div id="teacherList"></div>
+      </div>
+
+      <!-- Subject-Teacher Assignment -->
+      <div class="admin-section">
+        <h3>&#x1F4DA; Subject-Teacher Assignment</h3>
+        <div id="subjectAssignments"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== CONFIG =====
+const API_URL = 'https://aihs-attendance-backend.up.railway.app';
+
+// ===== State =====
+let students = [];
+let subjects = [];
+let teachers = [];
+let attendance = {}; // roll -> P/A
+let activeTimetable = 'regular';
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('en-PK', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('markDate').value = today();
+  document.getElementById('darDate').value = today();
+  document.getElementById('scanDate').value = today();
+  await checkAPI();
+  await loadStudents();
+  await loadSubjects();
+  await loadTodaySubjects();
+  await loadAdminData();
+});
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+async function checkAPI() {
+  try {
+    const r = await fetch(API_URL + '/');
+    if (r.ok) {
+      document.getElementById('statusDot').className = 'status-dot';
+      document.getElementById('statusText').textContent = 'Connected';
+    } else throw new Error();
+  } catch {
+    document.getElementById('statusDot').className = 'status-dot offline';
+    document.getElementById('statusText').textContent = 'Offline';
+  }
+}
+
+async function loadStudents() {
+  try {
+    const r = await fetch(API_URL + '/students');
+    students = await r.json();
+    renderStudentGrid();
+  } catch(e) { console.error(e); }
+}
+
+async function loadSubjects() {
+  try {
+    const r = await fetch(API_URL + '/subjects');
+    subjects = await r.json();
+    populateSubjectDropdowns();
+  } catch(e) { console.error(e); }
+}
+
+function populateSubjectDropdowns() {
+  const selects = ['markSubject', 'scanSubject', 'defaulterFilter'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    const isFilter = id === 'defaulterFilter';
+    sel.innerHTML = isFilter ? '<option value="">All Subjects</option>' : '<option value="">-- Select Subject --</option>';
+    subjects.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.code; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+async function loadTodaySubjects() {
+  try {
+    const r = await fetch(API_URL + '/timetable/today');
+    const data = await r.json();
+    activeTimetable = data.active_timetable;
+    document.getElementById('ttLabel').textContent = activeTimetable === 'ramadan' ? 'Ramadan' : 'Regular';
+    document.getElementById('adminTTSelect').value = activeTimetable;
+    const container = document.getElementById('todaySubjects');
+    if (!data.subjects || data.subjects.length === 0) {
+      container.innerHTML = '<span style="opacity:0.7">No classes today</span>';
+      return;
+    }
+    container.innerHTML = data.subjects.map(s =>
+      `<div class="subject-chip" onclick="selectSubjectChip('${s.subject_code}')">
+        ${s.start_time}-${s.end_time} &bull; ${s.subject_name}
+      </div>`
+    ).join('');
+  } catch(e) { console.error(e); }
+}
+
+function selectSubjectChip(code) {
+  document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('selected'));
+  event.target.closest('.subject-chip').classList.add('selected');
+  document.getElementById('markSubject').value = code;
+  loadAttendanceForSubject();
+}
+
+// ===== Student Grid =====
+function renderStudentGrid() {
+  const grid = document.getElementById('studentGrid');
+  grid.innerHTML = students.map(s => {
+    const status = attendance[s.roll_number];
+    const cls = status === 'P' ? 'present' : status === 'A' ? 'absent' : 'default';
+    const badge = status === 'P' ? 'PRESENT' : status === 'A' ? 'ABSENT' : '-';
+    return `<div class="student-card ${cls}" onclick="toggleStudent('${s.roll_number}')">
+      <div class="roll">${s.roll_number}</div>
+      <div class="name">${s.name}</div>
+      <div class="badge">${badge}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleStudent(roll) {
+  attendance[roll] = attendance[roll] === 'P' ? 'A' : 'P';
+  renderStudentGrid();
+}
+
+function markAll(status) {
+  students.forEach(s => attendance[s.roll_number] = status);
+  renderStudentGrid();
+}
+
+function resetAll() {
+  attendance = {};
+  renderStudentGrid();
+}
+
+async function loadAttendanceForSubject() {
+  const subj = document.getElementById('markSubject').value;
+  const date = document.getElementById('markDate').value;
+  if (!subj || !date) return;
+  try {
+    const r = await fetch(`${API_URL}/attendance/${subj}/${date}`);
+    const data = await r.json();
+    if (data.marked) {
+      attendance = data.records;
+      document.getElementById('markStatus').innerHTML = '<span style="color:var(--success);">&#x2714; Already marked &mdash; showing saved data</span>';
+    } else {
+      attendance = {};
+      document.getElementById('markStatus').textContent = 'Not marked yet for this date.';
+    }
+    renderStudentGrid();
+  } catch(e) { console.error(e); }
+}
+
+async function submitAttendance() {
+  const subj = document.getElementById('markSubject').value;
+  const date = document.getElementById('markDate').value;
+  if (!subj) return showToast('Please select a subject', 'error');
+  if (!date) return showToast('Please select a date', 'error');
+  const unmarked = students.filter(s => !attendance[s.roll_number]);
+  if (unmarked.length > 0) {
+    if (!confirm(`${unmarked.length} students not marked. Mark them as Absent?`)) return;
+    unmarked.forEach(s => attendance[s.roll_number] = 'A');
+    renderStudentGrid();
+  }
+  const btn = document.getElementById('submitBtn');
+  btn.innerHTML = '<span class="spinner"></span> Saving...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(API_URL + '/attendance', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({subject_code: subj, date, records: attendance})
+    });
+    const data = await r.json();
+    showToast(`&#x2714; Saved! Present: ${data.present}/${data.total}`, 'success');
+    document.getElementById('markStatus').innerHTML = '<span style="color:var(--success);">&#x2714; Saved successfully</span>';
+  } catch(e) {
+    showToast('Failed to save. Check connection.', 'error');
+  }
+  btn.innerHTML = '&#x1F4BE; Save Attendance';
+  btn.disabled = false;
+}
+
+// ===== Timetable Switch =====
+async function switchTimetable() {
+  try {
+    const r = await fetch(API_URL + '/timetable/switch', {method: 'PUT'});
+    const data = await r.json();
+    activeTimetable = data.active_timetable;
+    document.getElementById('ttLabel').textContent = activeTimetable === 'ramadan' ? 'Ramadan' : 'Regular';
+    document.getElementById('adminTTSelect').value = activeTimetable;
+    await loadTodaySubjects();
+    showToast(`Switched to ${activeTimetable} timetable`, 'success');
+  } catch(e) { showToast('Failed to switch', 'error'); }
+}
+
+async function setTimetableFromAdmin() {
+  const val = document.getElementById('adminTTSelect').value;
+  try {
+    await fetch(`${API_URL}/timetable/set/${val}`, {method: 'PUT'});
+    activeTimetable = val;
+    document.getElementById('ttLabel').textContent = val === 'ramadan' ? 'Ramadan' : 'Regular';
+    await loadTodaySubjects();
+    showToast(`Timetable set to ${val}`, 'success');
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+// ===== DAR =====
+async function loadDAR() {
+  const date = document.getElementById('darDate').value;
+  if (!date) return;
+  const container = document.getElementById('darContent');
+  container.innerHTML = '<p style="color:var(--muted)">Loading...</p>';
+  try {
+    const r = await fetch(`${API_URL}/dar/${date}`);
+    const data = await r.json();
+    if (!data.slots || data.slots.length === 0) {
+      container.innerHTML = '<p style="color:var(--muted)">No classes on this day.</p>';
+      return;
+    }
+    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    let html = `<h3 style="margin-bottom:12px;color:var(--primary)">${days[data.day]} &mdash; ${date}</h3>`;
+    let totalPresent = 0, totalSlots = 0;
+    data.slots.forEach(slot => {
+      const pctClass = slot.percentage >= 75 ? 'pct-high' : 'pct-low';
+      totalPresent += slot.present; totalSlots++;
+      const absentRecords = slot.marked ? `<div class="absent-chips" id="absent-${slot.subject_code}"></div>` : '';
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-weight:700;font-size:14px;">${slot.subject_name}</div>
+            <div style="font-size:12px;color:var(--muted);">${slot.teacher} &bull; ${slot.start_time}–${slot.end_time}</div>
+          </div>
+          <div style="text-align:right;">
+            ${slot.marked
+              ? `<span class="${pctClass}" style="font-size:20px;">${slot.percentage}%</span>
+                 <div style="font-size:12px;color:var(--muted);">Present: ${slot.present}/${slot.total}</div>`
+              : '<span style="color:var(--muted);font-size:13px;">Not marked</span>'
+            }
+          </div>
+        </div>
+      </div>`;
+    });
+    container.innerHTML = html;
+    // Load absent names for each slot
+    for (const slot of data.slots) {
+      if (slot.marked) {
+        const ar = await fetch(`${API_URL}/attendance/${slot.subject_code}/${date}`);
+        const ad = await ar.json();
+        const absentEl = document.getElementById(`absent-${slot.subject_code}`);
+        if (absentEl && ad.records) {
+          const absentStudents = students.filter(s => ad.records[s.roll_number] === 'A');
+          absentEl.innerHTML = absentStudents.map(s => `<span class="absent-chip">${s.name}</span>`).join('');
+        }
+      }
+    }
+  } catch(e) { container.innerHTML = '<p style="color:var(--danger)">Failed to load DAR.</p>'; }
+}
+
+// ===== Defaulters =====
+async function loadDefaulters() {
+  const filter = document.getElementById('defaulterFilter').value;
+  const container = document.getElementById('defaultersContent');
+  container.innerHTML = '<p style="color:var(--muted)">Loading...</p>';
+  try {
+    const r = await fetch(API_URL + '/defaulters');
+    let data = await r.json();
+    if (filter) {
+      data = data.filter(d => d.subjects.some(s => s.subject_code === filter));
+      data.forEach(d => d.subjects = d.subjects.filter(s => s.subject_code === filter));
+    }
+    if (data.length === 0) {
+      container.innerHTML = '<p style="color:var(--success);font-weight:600;">&#x2714; No defaulters! All students above 75%.</p>';
+      return;
+    }
+    let html = `<div style="margin-bottom:12px;color:var(--danger);font-weight:700;">${data.length} student(s) below 75% in at least one subject</div>`;
+    html += '<div class="table-wrap"><table><thead><tr><th>Roll No</th><th>Name</th><th>Subject</th><th>Present</th><th>Attendance %</th></tr></thead><tbody>';
+    data.forEach(d => {
+      d.subjects.forEach((s, i) => {
+        const pct = s.percentage;
+        html += `<tr>
+          ${i === 0 ? `<td rowspan="${d.subjects.length}" style="font-family:monospace;font-weight:600;">${d.roll_number}</td><td rowspan="${d.subjects.length}" style="font-weight:600;">${d.name}</td>` : ''}
+          <td>${s.subject_name}</td>
+          <td>${s.present}/${s.total}</td>
+          <td class="pct-low">${pct}%</td>
+        </tr>`;
+      });
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = '<p style="color:var(--danger)">Failed to load.</p>'; }
+}
+
+// ===== Student Summary =====
+let summaryData = [];
+async function loadSummaryData() {
+  try {
+    const r = await fetch(API_URL + '/class-summary');
+    summaryData = await r.json();
+    renderSummary(summaryData);
+  } catch(e) { console.error(e); }
+}
+
+function filterStudents() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = summaryData.filter(s =>
+    s.name.toLowerCase().includes(q) || s.roll_number.toLowerCase().includes(q)
+  );
+  renderSummary(filtered);
+}
+
+function renderSummary(data) {
+  const container = document.getElementById('summaryContent');
+  if (!data || data.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted)">No data found.</p>'; return;
+  }
+  const subjectCodes = subjects.map(s => s.code);
+  let html = '<div class="table-wrap"><table><thead><tr><th>Roll No</th><th>Name</th>';
+  subjects.forEach(s => html += `<th title="${s.name}">${s.code}</th>`);
+  html += '</tr></thead><tbody>';
+  data.forEach(student => {
+    html += `<tr><td style="font-family:monospace;font-weight:600;">${student.roll_number}</td><td>${student.name}</td>`;
+    subjectCodes.forEach(code => {
+      const sub = student.subjects[code];
+      if (!sub || sub.total === 0) {
+        html += '<td style="color:var(--muted)">N/A</td>';
+      } else {
+        const cls = sub.percentage >= 75 ? 'pct-high' : sub.percentage >= 50 ? 'pct-mid' : 'pct-low';
+        html += `<td class="${cls}">${sub.percentage}%<br><span style="font-size:10px;color:var(--muted);">${sub.present}/${sub.total}</span></td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ===== AI Scanner =====
+let scanImageBase64 = '';
+let scanResults = {};
+
+function handleScanUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    document.getElementById('scanPreview').src = dataUrl;
+    document.getElementById('scanPreview').style.display = 'block';
+    scanImageBase64 = dataUrl.split(',')[1];
+    document.getElementById('scanResult').innerHTML =
+      `<div style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="runScan()">&#x1F916; Scan with AI</button>
+      </div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runScan() {
+  const subj = document.getElementById('scanSubject').value;
+  const date = document.getElementById('scanDate').value;
+  if (!subj) return showToast('Select a subject first', 'error');
+  if (!scanImageBase64) return showToast('Upload an image first', 'error');
+  document.getElementById('scanResult').innerHTML = '<p style="color:var(--accent);margin-top:12px;"><span class="spinner" style="border-color:var(--accent);border-top-color:var(--accent);"></span> AI is reading the register...</p>';
+  try {
+    const r = await fetch(API_URL + '/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image_base64: scanImageBase64, subject_code: subj, date})
+    });
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.detail || 'Scan failed');
+    }
+    const data = await r.json();
+    scanResults = data.records;
+    renderScanReview(data.records, subj, date);
+  } catch(e) {
+    document.getElementById('scanResult').innerHTML = `<p style="color:var(--danger);margin-top:12px;">&#x26A0; ${e.message}</p>`;
+  }
+}
+
+function renderScanReview(records, subj, date) {
+  let html = `<div style="margin-top:16px;">
+    <h4 style="color:var(--primary);margin-bottom:12px;">&#x1F916; AI Scan Results &mdash; Review before saving</h4>
+    <div class="student-grid" id="scanGrid"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;">
+      <button class="btn btn-success" onclick="applyScanResults('${subj}','${date}')">&#x2714; Apply & Save</button>
+      <button class="btn btn-outline" onclick="document.getElementById('scanResult').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+  document.getElementById('scanResult').innerHTML = html;
+  const grid = document.getElementById('scanGrid');
+  grid.innerHTML = students.map(s => {
+    const status = records[s.roll_number] || 'A';
+    const cls = status === 'P' ? 'present' : 'absent';
+    return `<div class="student-card ${cls}" onclick="toggleScanStudent('${s.roll_number}')" id="scan-${s.roll_number}">
+      <div class="roll">${s.roll_number}</div>
+      <div class="name">${s.name}</div>
+      <div class="badge">${status === 'P' ? 'PRESENT' : 'ABSENT'}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleScanStudent(roll) {
+  scanResults[roll] = scanResults[roll] === 'P' ? 'A' : 'P';
+  const card = document.getElementById(`scan-${roll}`);
+  const status = scanResults[roll];
+  card.className = `student-card ${status === 'P' ? 'present' : 'absent'}`;
+  card.querySelector('.badge').textContent = status === 'P' ? 'PRESENT' : 'ABSENT';
+}
+
+async function applyScanResults(subj, date) {
+  try {
+    const r = await fetch(API_URL + '/attendance', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({subject_code: subj, date, records: scanResults})
+    });
+    const data = await r.json();
+    showToast(`&#x2714; Saved! Present: ${data.present}/${data.total}`, 'success');
+    document.getElementById('scanResult').innerHTML = '<p style="color:var(--success);margin-top:12px;">&#x2714; Attendance saved successfully!</p>';
+  } catch(e) { showToast('Failed to save', 'error'); }
+}
+
+// ===== Export =====
+async function exportCSV() {
+  try {
+    const r = await fetch(API_URL + '/export/csv');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `AIHS_Attendance_${today()}.csv`;
+    a.click();
+    showToast('CSV downloaded!', 'success');
+  } catch(e) { showToast('Export failed', 'error'); }
+}
+
+async function loadExportSummary() {
+  try {
+    const r = await fetch(API_URL + '/class-summary');
+    const data = await r.json();
+    if (!data.length) return;
+    const container = document.getElementById('exportClassSummary');
+    let total = 0, defaulters = 0;
+    data.forEach(s => {
+      const pcts = Object.values(s.subjects).filter(v => v.total > 0).map(v => v.percentage);
+      if (pcts.some(p => p < 75)) defaulters++;
+      total++;
+    });
+    container.innerHTML = `<div class="stats-row" style="margin-top:20px;">
+      <div class="stat-box stat-blue"><div class="num">${total}</div><div class="lbl">Total Students</div></div>
+      <div class="stat-box stat-red"><div class="num">${defaulters}</div><div class="lbl">Defaulters</div></div>
+      <div class="stat-box stat-green"><div class="num">${total - defaulters}</div><div class="lbl">Above 75%</div></div>
+    </div>`;
+  } catch(e) {}
+}
+
+// ===== Admin =====
+async function loadAdminData() {
+  try {
+    const [tr, sr, settR] = await Promise.all([
+      fetch(API_URL + '/teachers'),
+      fetch(API_URL + '/subjects'),
+      fetch(API_URL + '/settings')
+    ]);
+    teachers = await tr.json();
+    const subjs = await sr.json();
+    const settings = await settR.json();
+    if (settings.openrouter_api_key) {
+      document.getElementById('apiKeyInput').value = settings.openrouter_api_key;
+    }
+    if (settings.active_timetable) {
+      document.getElementById('adminTTSelect').value = settings.active_timetable;
+    }
+    renderTeacherList();
+    renderSubjectAssignments(subjs);
+  } catch(e) { console.error(e); }
+}
+
+function renderTeacherList() {
+  const active = teachers.filter(t => t.is_active);
+  document.getElementById('teacherList').innerHTML = active.map(t =>
+    `<div class="teacher-row">
+      <span style="font-weight:600;">${t.name}</span>
+      <button class="btn btn-danger btn-sm" onclick="deactivateTeacher(${t.id},'${t.name}')">Remove</button>
+    </div>`
+  ).join('');
+}
+
+function renderSubjectAssignments(subjs) {
+  const activeTeachers = teachers.filter(t => t.is_active);
+  document.getElementById('subjectAssignments').innerHTML = subjs.map(s =>
+    `<div class="teacher-row">
+      <span style="font-weight:600;font-size:13px;">${s.name}</span>
+      <select onchange="reassignTeacher('${s.code}', this.value)" style="font-size:12px;">
+        ${activeTeachers.map(t =>
+          `<option value="${t.id}" ${t.id === s.teacher_id ? 'selected' : ''}>${t.name}</option>`
+        ).join('')}
+      </select>
+    </div>`
+  ).join('');
+}
+
+async function addTeacher() {
+  const name = document.getElementById('newTeacherName').value.trim();
+  if (!name) return;
+  try {
+    await fetch(API_URL + '/teachers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    });
+    document.getElementById('newTeacherName').value = '';
+    await loadAdminData();
+    showToast(`${name} added!`, 'success');
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+async function deactivateTeacher(id, name) {
+  if (!confirm(`Remove ${name}? Their past attendance records will be preserved.`)) return;
+  try {
+    await fetch(`${API_URL}/teachers/${id}/deactivate`, {method: 'PUT'});
+    await loadAdminData();
+    showToast(`${name} removed`, 'success');
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+async function reassignTeacher(subjectCode, teacherId) {
+  try {
+    await fetch(`${API_URL}/subjects/${subjectCode}/teacher`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({teacher_id: parseInt(teacherId)})
+    });
+    showToast('Teacher reassigned!', 'success');
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+async function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  try {
+    await fetch(`${API_URL}/settings/openrouter_api_key`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({value: key})
+    });
+    showToast('API Key saved!', 'success');
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+// ===== Tab Switching =====
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['mark','dar','defaulters','summary','scanner','export','admin'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  if (name === 'defaulters') loadDefaulters();
+  if (name === 'summary') loadSummaryData();
+  if (name === 'export') loadExportSummary();
+  if (name === 'admin') loadAdminData();
+}
+
+// ===== Toast =====
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+</script>
+</body>
+</html>
